@@ -57,16 +57,16 @@ python3 walnutpi/check_environment.py --serial /dev/ttyUSB0 --camera-device auto
 
 ```bash
 python3 walnutpi/gimbal_web/server.py \
-  --serial /dev/ttyUSB0 \
+  --serial /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0 \
   --baud 115200 \
-  --camera-device auto \
-  --camera-width 640 --camera-height 480 --camera-fps 30 \
+  --camera-device /dev/v4l/by-id/usb-KINGSEN_KS1A552-video-index0 \
+  --camera-width 640 --camera-height 480 --camera-fps 20 \
   --port 8080
 ```
 
 浏览器访问 `http://<核桃派IP>:8080`。
 
-> 板载 CH340 枚举为 `/dev/ttyUSB0`。如果设备号会漂移，改用 `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0`。
+> 板载 CH340 枚举为 `/dev/ttyUSB0`。如果设备号会漂移，使用上面的 by-id 路径。摄像头也可先用 `--camera-device auto` 自动探测。
 
 ## 网页控制
 
