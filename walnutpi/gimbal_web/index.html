@@ -515,6 +515,7 @@
         if (logs && logs !== state.lastLog) { state.lastLog = logs; log.textContent = logs; log.scrollTop = log.scrollHeight; }
         const camera = data.camera || {};
         document.getElementById("cameraStatus").textContent = camera.opened ? `已连接：${camera.device}` : (camera.error || "摄像头没有打开");
+        document.getElementById("cameraDevice").value = camera.device || "/dev/video0";
         document.getElementById("cameraFps").textContent = camera.fps ? `${camera.fps} FPS` : "- FPS";
         document.getElementById("cameraEmpty").hidden = camera.opened;
       } catch (error) {
