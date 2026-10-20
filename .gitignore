@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Keil MDK 构建产物
+*.o
+*.d
+*.crf
+*.axf
+*.hex
+*.map
+*.htm
+*.lnp
+*.dep
+*.lst
+*.sct.bak
+*.uvguix.*
+MDK-ARM/fashionstar-uart-servo-stm32f103-hal-sdk/
+MDK-ARM/DebugConfig/
+MDK-ARM/RTE/
+MDK-ARM/build.log
+
+# 编辑器
+.vscode/
+.idea/

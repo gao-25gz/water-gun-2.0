@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>二层云台控制台</title>
+  <style>
+    :root {
+      --bg: #101417;
+      --panel: #182026;
+      --panel2: #202b32;
+      --line: #33424b;
+      --text: #edf4f6;
+      --muted: #9eafb6;
+      --teal: #42c6b0;
+      --teal-dim: #1d6f68;
+      --orange: #f0aa62;
+      --danger: #e87878;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .app {
+      width: min(1700px, 100%); height: 100vh; margin: auto;
+      padding: 12px; display: flex; flex-direction: column;
+    }
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 16px; padding-bottom: 10px; margin-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: clamp(24px, 3vw, 34px); }
+    h2 { font-size: 15px; color: var(--muted); font-weight: 650; }
+    .subtitle { color: var(--muted); margin-top: 4px; }
+    .status { display: flex; align-items: center; gap: 9px; white-space: nowrap; color: var(--muted); }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--danger); box-shadow: 0 0 0 4px rgba(232,120,120,.12);
+    }
+    .status-dot.online {
+      background: var(--teal); box-shadow: 0 0 0 4px rgba(66,198,176,.12);
+    }
+    .layout {
+      flex: 1; min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-rows: minmax(0, 1fr) minmax(150px, 0.8fr);
+      gap: 10px;
+    }
+    .panel {
+      min-width: 0; background: var(--panel);
+      border: 1px solid var(--line); padding: 12px;
+    }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .camera-panel {
+      grid-column: 1; grid-row: 1 / 3;
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .camera-tools {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 10px;
+    }
+    .camera-tools input {
+      width: 150px; border: 1px solid var(--line);
+      background: var(--bg); color: var(--text); padding: 8px;
+    }
+    .camera-view {
+      position: relative; flex: 1; min-height: 0; background: #080a0b;
+      display: grid; place-items: center; overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .camera-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .crosshair {
+      position: absolute;
+      left: 50%;
+      top: 66.6667%;
+      width: 44px;
+      height: 44px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 2;
+      filter: drop-shadow(0 0 2px rgba(0,0,0,.9));
+    }
+    .crosshair::before,
+    .crosshair::after {
+      content: "";
+      position: absolute;
+      background: #ff4d4d;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.45);
+    }
+    .crosshair::before {
+      left: 21px;
+      top: 0;
+      width: 2px;
+      height: 44px;
+    }
+    .crosshair::after {
+      left: 0;
+      top: 21px;
+      width: 44px;
+      height: 2px;
+    }
+    .crosshair-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      border: 2px solid #ff4d4d;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.45);
+    }
+    .camera-empty { color: var(--muted); text-align: center; padding: 24px; }
+    .control-panel {
+      grid-column: 2; grid-row: 1;
+      display: flex; flex-direction: column; min-height: 0; overflow: auto;
+    }
+    .telemetry-panel { grid-column: 2; grid-row: 2; min-height: 0; display: flex; flex-direction: column; }
+    .angle-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .readout { background: var(--panel2); border-left: 3px solid var(--teal); padding: 9px 11px; }
+    .readout span { display: block; color: var(--muted); font-size: 12px; }
+    .readout strong { display: block; font-size: 25px; font-variant-numeric: tabular-nums; }
+    .control-pad {
+      display: grid; grid-template-columns: repeat(3, 68px);
+      grid-template-rows: repeat(3, 58px); justify-content: center;
+      gap: 7px; margin: 8px auto 12px; touch-action: none;
+    }
+    .pad-button, .action-button {
+      border: 1px solid var(--line); background: var(--panel2);
+      color: var(--text); user-select: none; -webkit-user-select: none;
+      touch-action: none; transition: .12s;
+    }
+    .pad-button { display: grid; place-items: center; font-size: 22px; font-weight: 600; }
+    .pad-button:hover, .action-button:hover { border-color: var(--teal); background: #24373a; }
+    .pad-button:active, .pad-button.active, .action-button:active {
+      background: var(--teal-dim); border-color: var(--teal); transform: translateY(1px);
+    }
+    .action-button.danger { background: #2c1b1b; border-color: #6d3a3a; }
+    .action-button.danger:active, .action-button.danger.active {
+      background: #7a2222; border-color: #d96d6d;
+    }
+    .pad-stop { color: var(--orange); }
+    .pad-up { grid-column: 2; grid-row: 1; }
+    .pad-left { grid-column: 1; grid-row: 2; }
+    .pad-stop { grid-column: 2; grid-row: 2; }
+    .pad-right { grid-column: 3; grid-row: 2; }
+    .pad-down { grid-column: 2; grid-row: 3; }
+    .hint { text-align: center; color: var(--muted); font-size: 12px; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .relay-row {
+      margin-top: 8px;
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      background: var(--panel);
+      padding-top: 8px;
+    }
+    .action-button { padding: 8px 9px; }
+    .action-button.full { width: 100%; }
+    .action-button.primary { background: var(--teal-dim); border-color: var(--teal); }
+    .telemetry { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; color: var(--muted); font-size: 12px; }
+    .telemetry strong {
+      display: block; color: var(--text); font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .log {
+      flex: 1; min-height: 90px; margin: 12px 0 0; padding: 9px;
+      background: #0c1012; border: 1px solid var(--line); color: #b7d3cd;
+      font: 11px/1.45 ui-monospace, Consolas, monospace;
+      white-space: pre-wrap; overflow: auto;
+    }
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100vh; }
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
+      .camera-panel, .control-panel, .telemetry-panel {
+        grid-column: 1; grid-row: auto;
+      }
+      .camera-panel { min-height: 55vh; }
+    }
+    @media (max-width: 520px) {
+      .app { padding: 10px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>二层云台控制台</h1>
+        <p class="subtitle">左右：ID2　|　上下：ID1　|　按住按钮即可连续移动</p>
+      </div>
+      <div class="status">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">正在检查串口</span>
+      </div>
+    </header>
+
+    <section class="layout">
+      <section class="panel camera-panel">
+        <div class="panel-head">
+          <h2>摄像头画面</h2>
+          <span id="cameraStatus" class="subtitle">正在打开摄像头</span>
+        </div>
+        <div class="camera-tools">
+          <span class="subtitle">设备</span>
+          <input id="cameraDevice" value="/dev/video0" aria-label="摄像头设备">
+          <span id="cameraFps" class="subtitle">- FPS</span>
+        </div>
+        <div class="camera-view">
+          <img id="videoFeed" src="/video.mjpg" alt="摄像头画面">
+          <div class="crosshair" aria-hidden="true">
+            <div class="crosshair-ring"></div>
+          </div>
+          <div id="cameraEmpty" class="camera-empty" hidden>摄像头暂时没有画面</div>
+        </div>
+      </section>
+
+      <section class="panel control-panel">
+        <div class="panel-head">
+          <h2>方向控制</h2>
+          <span class="subtitle">支持同时按两个方向</span>
+        </div>
+        <div class="angle-readout">
+          <div class="readout"><span>左右 / ID2</span><strong id="yawValue">0.0°</strong></div>
+          <div class="readout"><span>上下 / ID1</span><strong id="pitchValue">0.0°</strong></div>
+        </div>
+        <div class="control-pad" aria-label="云台方向控制">
+          <button class="pad-button pad-up" data-command="U">上</button>
+          <button class="pad-button pad-left" data-command="L">左</button>
+          <button class="pad-button pad-stop" id="stopButton">回零</button>
+          <button class="pad-button pad-right" data-command="R">右</button>
+          <button class="pad-button pad-down" data-command="D">下</button>
+        </div>
+        <p class="hint">电脑按住 W/A/S/D，手机直接按住方向按钮</p>
+        <div class="relay-row">
+          <button class="action-button danger full" id="relayButton">按住发射</button>
+        </div>
+        <p id="relayStatus" class="hint">继电器：未连接</p>
+      </section>
+
+      <section class="panel telemetry-panel">
+        <div class="panel-head">
+          <h2>状态和日志</h2>
+          <span id="portValue" class="subtitle">-</span>
+        </div>
+        <div class="telemetry">
+          <div>陀螺仪俯仰角<strong id="pitchFeedbackValue">等待数据</strong></div>
+          <div>补偿动作<strong id="pitchCompValue">等待数据</strong></div>
+          <div>最近发送<strong id="txValue">-</strong></div>
+          <div>最近回传<strong id="rxValue">-</strong></div>
+        </div>
+        <pre id="log" class="log">等待 STM32 回传...</pre>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      yaw: 0, pitch: 0, active: new Set(), timer: null, lastLog: "",
+      localUntil: 0, lastGimbalSeq: -1, relayActive: false, relayKeyDown: false
+    };
+    // 串口请求不能无限排队。长按时只保留最新目标，避免旧指令延迟到达。
+    let txBusy = false;
+    let txPending = null;
+    let relayBusy = false;
+    let relayPending = null;
+    const CONTROL_STEP_DEG = 1;
+    const CONTROL_PERIOD_MS = 20;
+    const buttonMap = {};
+    const log = document.getElementById("log");
+    const relayButton = document.getElementById("relayButton");
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, Number(v))); }
+    function setAngles(yaw, pitch) {
+      state.yaw = clamp(yaw, -90, 90);
+      state.pitch = clamp(pitch, -45, 40);
+      document.getElementById("yawValue").textContent = `${state.yaw.toFixed(1)}°`;
+      document.getElementById("pitchValue").textContent = `${state.pitch.toFixed(1)}°`;
+    }
+    function clearActive() {
+      state.active.clear();
+      Object.values(buttonMap).forEach(button => button.classList.remove("active"));
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    }
+    function send(command) {
+      // 停止、归中等控制指令必须覆盖还未发送的角度指令。
+      txPending = command;
+      document.getElementById("txValue").textContent = command;
+      pumpTx();
+    }
+    async function pumpTx() {
+      if (txBusy || txPending === null) return;
+      const command = txPending;
+      txPending = null;
+      txBusy = true;
+      try {
+        const response = await fetch("/api/command", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({command})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "发送失败");
+      } catch (error) {
+        log.textContent = `[错误] ${error.message}`;
+      } finally {
+        txBusy = false;
+        // 如果期间产生了新目标，立即发送最新的一条。
+        if (txPending !== null) pumpTx();
+      }
+    }
+    function setRelayVisual(active) {
+      state.relayActive = active;
+      relayButton.classList.toggle("active", active);
+    }
+    function queueRelay(action) {
+      relayPending = action;
+      pumpRelay();
+    }
+    async function pumpRelay() {
+      if (relayBusy || relayPending === null) return;
+      const action = relayPending;
+      relayPending = null;
+      relayBusy = true;
+      try {
+        const response = await fetch("/api/relay", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({action})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "发送失败");
+        setRelayVisual(action === "on");
+      } catch (error) {
+        log.textContent = `[错误] ${error.message}`;
+      } finally {
+        relayBusy = false;
+        if (relayPending !== null) pumpRelay();
+      }
+    }
+    function sendTarget() {
+      // 给串口和状态回读留出时间，避免旧的 0.0 状态把刚发出的目标覆盖掉。
+      state.localUntil = Date.now() + 1200;
+      send(`A:${state.yaw.toFixed(1)},${state.pitch.toFixed(1)}`);
+    }
+    function stepActive() {
+      if (!state.active.size) return;
+      const step = CONTROL_STEP_DEG;
+      let yaw = 0, pitch = 0;
+      if (state.active.has("L")) yaw -= step;
+      if (state.active.has("R")) yaw += step;
+      if (state.active.has("U")) pitch += step;
+      if (state.active.has("D")) pitch -= step;
+      const oldYaw = state.yaw, oldPitch = state.pitch;
+      setAngles(state.yaw + yaw, state.pitch + pitch);
+      if (oldYaw !== state.yaw || oldPitch !== state.pitch) sendTarget();
+    }
+    function startTimer() {
+      if (!state.timer) {
+        state.timer = setInterval(stepActive, CONTROL_PERIOD_MS);
+      }
+    }
+    function beginHold(command, button, event) {
+      event.preventDefault();
+      // 键盘事件没有 pointerId，不能调用 setPointerCapture。
+      if (event.pointerId !== undefined && button?.setPointerCapture) {
+        button.setPointerCapture(event.pointerId);
+      }
+      state.active.add(command); button.classList.add("active");
+      stepActive(); startTimer();
+    }
+    function endHold(command, button, event) {
+      event.preventDefault(); state.active.delete(command);
+      button.classList.remove("active");
+      if (!state.active.size && state.timer) { clearInterval(state.timer); state.timer = null; }
+    }
+    document.querySelectorAll("[data-command]").forEach(button => {
+      const command = button.dataset.command; buttonMap[command] = button;
+      button.addEventListener("pointerdown", e => beginHold(command, button, e));
+      button.addEventListener("pointerup", e => endHold(command, button, e));
+      button.addEventListener("pointercancel", e => endHold(command, button, e));
+      button.addEventListener("pointerleave", e => { if (e.buttons === 0) endHold(command, button, e); });
+    });
+    document.getElementById("stopButton").addEventListener("click", () => {
+      clearActive();
+      setAngles(0, 0);
+      send("C");
+    });
+    relayButton.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      queueRelay("on");
+    });
+    relayButton.addEventListener("pointerup", e => {
+      e.preventDefault();
+      queueRelay("off");
+    });
+    relayButton.addEventListener("pointercancel", e => {
+      e.preventDefault();
+      queueRelay("off");
+    });
+    relayButton.addEventListener("pointerleave", e => {
+      if (e.buttons === 0) queueRelay("off");
+    });
+
+    const keyCommands = {w: "U", s: "D", a: "L", d: "R"};
+    window.addEventListener("keydown", e => {
+      if (e.target.matches("input")) return;
+      if ((e.key || "") === " " || e.code === "Space") {
+        e.preventDefault();
+        if (!e.repeat && !state.relayKeyDown) {
+          state.relayKeyDown = true;
+          queueRelay("on");
+        }
+        return;
+      }
+      if ((e.key || "").toLowerCase() === "c") {
+        e.preventDefault();
+        clearActive();
+        setAngles(0, 0);
+        send("C");
+        return;
+      }
+      if ((e.key || "").toLowerCase() === "z") {
+        e.preventDefault();
+        send("Z");
+        return;
+      }
+      if ((e.key || "").toLowerCase() === "n") {
+        e.preventDefault();
+        send("N");
+        return;
+      }
+      const command = keyCommands[(e.key || "").toLowerCase()] ||
+        ({KeyW: "U", KeyS: "D", KeyA: "L", KeyD: "R"}[e.code]);
+      if (!command || e.repeat) return;
+      e.preventDefault(); beginHold(command, buttonMap[command], e);
+    });
+    window.addEventListener("keyup", e => {
+      if ((e.key || "") === " " || e.code === "Space") {
+        e.preventDefault();
+        state.relayKeyDown = false;
+        queueRelay("off");
+        return;
+      }
+      const command = keyCommands[(e.key || "").toLowerCase()] ||
+        ({KeyW: "U", KeyS: "D", KeyA: "L", KeyD: "R"}[e.code]);
+      if (command && buttonMap[command]) endHold(command, buttonMap[command], e);
+    });
+    window.addEventListener("blur", () => {
+      state.relayKeyDown = false;
+      queueRelay("off");
+    });
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch("/api/status", {cache: "no-store"});
+        const data = await response.json();
+        document.getElementById("statusDot").classList.toggle("online", data.connected);
+        document.getElementById("statusText").textContent = data.connected ? "串口已连接" : "串口未连接";
+        document.getElementById("portValue").textContent = `${data.port} @ ${data.baud}`;
+        document.getElementById("txValue").textContent = data.last_tx || "-";
+        document.getElementById("rxValue").textContent = data.last_rx || "-";
+        const pitchFeedback = data.pitch_feedback;
+        document.getElementById("pitchFeedbackValue").textContent =
+          pitchFeedback == null
+            ? "等待数据"
+            : `相对启动零点 ${Number(pitchFeedback).toFixed(2)}°`;
+        const pitchCompensation = Number(data.pitch_compensation || 0);
+        let compensationText;
+        if (!data.comp_enabled) {
+          compensationText = "已关闭";
+        } else if (Math.abs(pitchCompensation) < 0.01) {
+          compensationText = "不补偿";
+        } else if (pitchCompensation > 0) {
+          compensationText = `上抬 ${pitchCompensation.toFixed(2)}°`;
+        } else {
+          compensationText = `下降 ${Math.abs(pitchCompensation).toFixed(2)}°`;
+        }
+        document.getElementById("pitchCompValue").textContent = compensationText;
+        // 只有收到新的 STM32 角度回读，才同步网页角度；
+        // 后端默认的 0.0 不得覆盖网页当前目标。
+        if (data.gimbal_seq !== state.lastGimbalSeq) {
+          const isNewFeedback = state.lastGimbalSeq >= 0;
+          state.lastGimbalSeq = data.gimbal_seq;
+          if (isNewFeedback && !state.active.size && Date.now() > state.localUntil) {
+            setAngles(data.yaw, data.pitch);
+          }
+        }
+        const relay = data.relay || {};
+        document.getElementById("relayStatus").textContent = relay.connected
+          ? `继电器：${relay.state ? "接通" : "断开"}`
+          : (relay.error || "继电器：未连接");
+        if (relay.ack) {
+          document.getElementById("relayStatus").textContent += `｜${relay.ack}`;
+        }
+        if (relay.connected) {
+          setRelayVisual(!!relay.state);
+        }
+        const logs = (data.logs || []).join("\n");
+        if (logs && logs !== state.lastLog) { state.lastLog = logs; log.textContent = logs; log.scrollTop = log.scrollHeight; }
+        const camera = data.camera || {};
+        document.getElementById("cameraStatus").textContent = camera.opened ? `已连接：${camera.device}` : (camera.error || "摄像头没有打开");
+        document.getElementById("cameraFps").textContent = camera.fps ? `${camera.fps} FPS` : "- FPS";
+        document.getElementById("cameraEmpty").hidden = camera.opened;
+      } catch (error) {
+        document.getElementById("statusText").textContent = "网页服务断开";
+        document.getElementById("statusDot").classList.remove("online");
+      }
+    }
+    setAngles(0, 0);
+    refreshStatus();
+    setInterval(refreshStatus, 500);
+  </script>
+</body>
+</html>
